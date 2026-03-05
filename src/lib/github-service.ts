@@ -157,7 +157,7 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
         branding: brandingScore,
         repoQuality: weightedRepoScore,
         consistency: consistencyScore,
-        profile: totalScore,
+        profile: totalScore
       },
       stats: {
         totalRepos: user.stats.totalCount, 

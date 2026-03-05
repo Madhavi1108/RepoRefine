@@ -18,13 +18,15 @@ const PROFILE_QUERY = `
       twitterUsername
       websiteUrl
       followers { totalCount }
-      # Get total count of ALL repos (including forks) for the stat number
+      
+      # Get total count of ALL repos (including forks)
       stats: repositories(ownerAffiliations: OWNER) {
         totalCount
       }
-      # Get the top 6 NON-FORK repos for analysis
-      repositories(first: 6, orderBy: {field: STARGAZERS, direction: DESC}, ownerAffiliations: OWNER, isFork: false) {
-        totalCount
+
+      # FETCH UP TO 100 NON-FORK REPOS
+      # We sort by STARGAZERS to ensure we analyze the most important work first
+      repositories(first: 100, orderBy: {field: STARGAZERS, direction: DESC}, ownerAffiliations: OWNER, isFork: false) {
         nodes {
           name
           description
@@ -51,20 +53,28 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
     }
 
     const user = data.user;
+    const breakdown: { label: string; value: number; reason: string }[] = [];
 
-    // --- 1. Audit Repositories ---
+    // --- 1. Audit Repositories (Up to 100) ---
     const analyzedRepos: AnalyzedRepo[] = user.repositories.nodes.map((repo: any) => {
       const issues: string[] = [];
       let score = 100;
 
       if (!repo.description) { issues.push("Missing Description"); score -= 10; }
       if (!repo.licenseInfo) { issues.push("No License"); score -= 20; }
-      if (!repo.object?.text) { issues.push("No README"); score -= 40; }
-      else if (repo.object.text.length < 200) { issues.push("Weak README"); score -= 20; }
+      
+      // Strict README check
+      if (!repo.object?.text) { 
+        issues.push("No README"); 
+        score -= 40; 
+      } else if (repo.object.text.length < 300) { 
+        issues.push("Weak README"); 
+        score -= 20; 
+      }
       
       const lastPush = new Date(repo.pushedAt);
       const daysSincePush = (Date.now() - lastPush.getTime()) / (1000 * 3600 * 24);
-      if (daysSincePush > 180) { issues.push("Inactive > 6mo"); score -= 15; }
+      if (daysSincePush > 365) { issues.push("Inactive > 1yr"); score -= 10; }
 
       return {
         name: repo.name,
@@ -77,21 +87,64 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       };
     });
 
-    // --- 2. Calculate Profile Scores ---
+    // --- SMART SCORING ---
+    // Instead of a flat average (which punishes you for old experimental repos),
+    // we take the weighted average of your Top 10 repos (by stars).
+    // The rest of the repos only count for 20% of the grade.
+    
+    const topRepos = analyzedRepos.slice(0, 10);
+    const otherRepos = analyzedRepos.slice(10);
+
+    const topAvg = topRepos.reduce((acc, r) => acc + r.score, 0) / (topRepos.length || 1);
+    const otherAvg = otherRepos.length > 0 
+      ? otherRepos.reduce((acc, r) => acc + r.score, 0) / otherRepos.length 
+      : topAvg; // Fallback if < 10 repos
+
+    // Weighted Quality Score: Top repos matter 80%, others 20%
+    const weightedRepoScore = Math.round((topAvg * 0.8) + (otherAvg * 0.2));
+
+    breakdown.push({ 
+      label: "Code Standards", 
+      value: weightedRepoScore, 
+      reason: `Weighted score of ${analyzedRepos.length} repositories (Top 10 impactful projects prioritized).` 
+    });
+
+    // --- 2. Branding ---
     let brandingScore = 0;
-    if (user.bio) brandingScore += 20;
+    if (user.bio) brandingScore += 20; 
     if (user.company) brandingScore += 10;
     if (user.location) brandingScore += 10;
     if (user.websiteUrl) brandingScore += 30;
     if (user.twitterUsername) brandingScore += 10;
     if (user.avatarUrl) brandingScore += 20;
 
-    const repoQualityAvg = analyzedRepos.reduce((acc, r) => acc + r.score, 0) / (analyzedRepos.length || 1);
-    
-    // Simple consistency proxy
-    const consistencyScore = analyzedRepos.some(r => r.issues.includes("Inactive > 6mo")) ? 40 : 85;
+    breakdown.push({ 
+      label: "Profile Completeness", 
+      value: brandingScore, 
+      reason: user.bio ? "Bio and links present." : "Missing key profile details." 
+    });
 
-    const totalScore = Math.round((brandingScore * 0.2) + (repoQualityAvg * 0.5) + (consistencyScore * 0.3));
+    // --- 3. Consistency ---
+    // Check if the user has pushed code in the last 30 days to ANY repo
+    const recentActivity = analyzedRepos.some(r => {
+       const date = new Date(r.lastUpdated);
+       const days = (Date.now() - date.getTime()) / (1000 * 3600 * 24);
+       return days < 30;
+    });
+    
+    const consistencyScore = recentActivity ? 95 : 40;
+
+    breakdown.push({ 
+      label: "Activity Health", 
+      value: consistencyScore, 
+      reason: recentActivity ? "Recent contributions detected." : "No code pushed in over 30 days." 
+    });
+
+    const totalScore = Math.round(
+      (weightedRepoScore * 0.5) +      
+      (brandingScore * 0.2) + 
+      (consistencyScore * 0.3) 
+    );
 
     return {
       username,
@@ -102,16 +155,17 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       scores: {
         total: totalScore,
         branding: brandingScore,
-        repoQuality: Math.round(repoQualityAvg),
+        repoQuality: weightedRepoScore,
         consistency: consistencyScore,
-        profile: totalScore 
+        profile: totalScore,
+        breakdown: breakdown 
       },
       stats: {
-        // FIX: Use the totalCount from the 'stats' alias we added to the query
         totalRepos: user.stats.totalCount, 
         totalStars: analyzedRepos.reduce((acc, r) => acc + r.stars, 0),
         forks: analyzedRepos.reduce((acc, r) => acc + (r as any).forkCount || 0, 0),
       },
+      // Return all analyzed repos
       repos: analyzedRepos,
       redFlags: analyzedRepos.flatMap(r => r.issues).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
     };

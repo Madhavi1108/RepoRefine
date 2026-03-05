@@ -20,17 +20,17 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
     console.log("...Fetching GitHub Data");
     const profileData = await getProfileData(username);
     
-    // 3. Get AI Insights (Handle missing OpenAI key gracefully)
+     // 3. Get AI Insights (Handle missing Groq key gracefully)
     console.log("...Fetching AI Review");
     let aiData;
     try {
-      if (!process.env.OPENAI_API_KEY) throw new Error("No OpenAI Key");
+       if (!process.env.GROQ_API_KEY) throw new Error("No Groq Key");
       aiData = await generateAIReview(profileData, persona);
     } catch (aiError) {
-      console.warn("⚠️ OpenAI Failed or Key missing. Using fallback.");
+      console.warn("⚠️ Groq Failed or Key missing. Using fallback.");
       aiData = {
-        commentary: "AI Analysis unavailable. Please add a valid OPENAI_API_KEY to .env.local to generate a personalized review.",
-        roadmap: ["Add OpenAI API Key", "Check GitHub Token", "Review Code Manually"]
+        commentary: "AI Analysis unavailable. Please add a valid GROQ_API_KEY to .env.local to generate a personalized review.",
+        roadmap: ["Add GROQ API Key", "Check GitHub Token", "Review Code Manually"]
       };
     }
 

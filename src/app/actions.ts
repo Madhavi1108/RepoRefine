@@ -10,13 +10,13 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
   const persona = (formData.get("persona") as Persona) || "recruiter";
 
   if (!username) {
-    throw new Error("Username cannot be empty.");
+    throw new Error("VALIDATION: Username cannot be empty.");
   }
   if (username.length > 39) {
-    throw new Error("Invalid GitHub username: too long (max 39 characters).");
+    throw new Error("VALIDATION: Invalid GitHub username: too long (max 39 characters).");
   }
   if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)) {
-    throw new Error("Invalid GitHub username: only letters, numbers, and hyphens allowed. Cannot start or end with a hyphen.");
+    throw new Error("VALIDATION: Invalid GitHub username: only letters, numbers, and hyphens allowed. Cannot start or end with a hyphen.");
   }
 
   console.log(`🚀 Starting analysis for: ${username}`);

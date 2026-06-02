@@ -20,7 +20,12 @@ export default function Home() {
       const result = await analyzeProfile(formData);
       setData(result);
     } catch (e) {
-      setError((e as Error).message || "Could not analyze profile. Check username or try again later.");
+      const msg = (e as Error).message || "";
+      setError(
+        msg.startsWith("VALIDATION: ")
+          ? msg.replace("VALIDATION: ", "")
+          : "Could not analyze profile. Check username or try again later."
+);
     } finally {
       setLoading(false);
     }

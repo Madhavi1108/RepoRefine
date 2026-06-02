@@ -88,6 +88,54 @@ App runs at:
 http://localhost:3000
 ```
 ---
+## ⚠️ GitHub API Rate Limits
+
+RepoRefine uses the [GitHub GraphQL API](https://docs.github.com/en/graphql), which enforces rate limits on all requests.
+
+### Limits at a glance
+
+| Auth status | Rate limit |
+|---|---|
+| Unauthenticated | 60 requests / hour |
+| Authenticated (with PAT) | 5,000 points / hour |
+
+> RepoRefine makes multiple GraphQL queries per audit. **Always use a GitHub Personal Access Token (PAT)** to avoid hitting limits quickly.
+
+### Symptoms of hitting the rate limit
+
+- Audit results fail to load or appear incomplete
+- You see a `403` error or a message like `API rate limit exceeded`
+- The app stops responding mid-analysis
+
+### How to fix it
+
+**1. Add your GitHub PAT to `.env.local`**
+
+````env
+GITHUB_TOKEN=your_github_pat_here
+````
+
+Generate a token at [github.com/settings/tokens](https://github.com/settings/tokens). For read-only auditing, the following scopes are enough:
+- `read:user`
+- `repo` (for private repo analysis, optional)
+
+**2. Check your current rate limit status**
+
+Visit this URL while logged in to GitHub:
+````
+https://api.github.com/rate_limit
+````
+Look for `"graphql"` → `"remaining"` to see how many points you have left, and `"reset"` for when it refills.
+
+**3. Wait for the reset**
+
+Rate limits reset every hour. If you've hit the limit, wait until the reset time shown in the API response above.
+
+### Tips to stay within limits
+
+- Avoid auditing the same profile repeatedly in a short window
+- Use a dedicated PAT for RepoRefine rather than a shared one
+- If you're running RepoRefine locally for development/testing, keep audits spaced out
 
 ### 🧠 How It Works
 RepoRefine uses GitHub GraphQL queries to fetch:

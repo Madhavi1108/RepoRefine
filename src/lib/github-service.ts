@@ -44,6 +44,36 @@ const PROFILE_QUERY = `
   }
 `;
 
+// Parse README headings and detect present/missing sections
+function detectReadmeSections(text: string): { detected: string[]; missing: string[] } {
+  const expectedSections = [
+    "installation",
+    "usage",
+    "features",
+    "contributing",
+    "license",
+    "getting started",
+    "prerequisites",
+    "demo",
+    "tech stack",
+    "about",
+  ];
+
+  // Extract only headings (lines starting with #)
+  const headings = text
+    .split("\n")
+    .filter(line => /^#{1,3}\s+/.test(line))
+    .map(line => line.replace(/^#+\s+/, "").toLowerCase().trim());
+
+  const detected = expectedSections.filter(section =>
+    headings.some(h => h.includes(section))
+  );
+
+  const missing = expectedSections.filter(s => !detected.includes(s));
+
+  return { detected, missing };
+}
+
 export async function getProfileData(username: string): Promise<Partial<ProfileAnalysis>> {
   try {
     const data: any = await github(PROFILE_QUERY, { username });
@@ -64,14 +94,20 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       if (!repo.licenseInfo) { issues.push("No License"); score -= 20; }
       
       // Strict README check
-      if (!repo.object?.text) { 
-        issues.push("No README"); 
-        score -= 40; 
-      } else if (repo.object.text.length < 300) { 
-        issues.push("Weak README"); 
-        score -= 20; 
-      }
-      
+if (!repo.object?.text) {
+  issues.push("No README");
+  score -= 40;
+} else {
+  const { detected, missing } = detectReadmeSections(repo.object.text);
+  if (detected.length < 2) {
+    issues.push("Weak README (missing key sections)");
+    score -= 20;
+  }
+  if (missing.length > 5) {
+    issues.push(`README missing: ${missing.slice(0, 3).join(", ")}`);
+    score -= 10;
+  }
+}     
       const lastPush = new Date(repo.pushedAt);
       const daysSincePush = (Date.now() - lastPush.getTime()) / (1000 * 3600 * 24);
       if (daysSincePush > 365) { issues.push("Inactive > 1yr"); score -= 10; }

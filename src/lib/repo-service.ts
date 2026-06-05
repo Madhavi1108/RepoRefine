@@ -1,5 +1,5 @@
-import { graphql } from "@octokit/graphql";
-import { parseRepoUrl } from "@/lib/parse-repo-url";
+import { github } from "@/lib/github/client";
+import { BlobQueryResponse, RepoQueryResponse } from "@/lib/github/graphql-types";
 import {
   detectReadmeSections,
   extractReadmeHeadings,
@@ -18,6 +18,7 @@ import {
 import { generateTemplateReadme } from "@/lib/readme-generator";
 import { generateRepoReadme } from "@/lib/ai-service";
 import { RepoLinkAudit } from "@/types";
+import { parseRepoUrl } from "@/lib/parse-repo-url";
 
 const PROBE_FILES = [
   "package.json",
@@ -46,12 +47,6 @@ const PROBE_FILES = [
   "tsconfig.json",
   "CONTRIBUTING.md",
 ];
-
-const github = graphql.defaults({
-  headers: {
-    authorization: `token ${process.env.GITHUB_TOKEN}`,
-  },
-});
 
 const REPO_QUERY = `
   query($owner: String!, $name: String!) {
@@ -96,26 +91,7 @@ const BLOB_QUERY = `
   }
 `;
 
-type RepoQueryResult = {
-  repository: {
-    name: string;
-    description: string | null;
-    url: string;
-    isFork: boolean;
-    isPrivate: boolean;
-    pushedAt: string;
-    stargazerCount: number;
-    forkCount: number;
-    primaryLanguage: { name: string } | null;
-    licenseInfo: { name: string } | null;
-    repositoryTopics: { nodes: Array<{ topic: { name: string } }> };
-    languages: { edges: Array<{ node: { name: string } }> };
-    issues: { totalCount: number };
-    readme: { text: string } | null;
-    root: { entries: Array<{ name: string; type: string }> } | null;
-    workflows: { entries: Array<{ name: string }> } | null;
-  } | null;
-};
+
 
 async function fetchBlob(owner: string, name: string, path: string): Promise<string | null> {
   try {
@@ -123,7 +99,7 @@ async function fetchBlob(owner: string, name: string, path: string): Promise<str
       owner,
       name,
       expression: `HEAD:${path}`,
-    })) as { repository: { object: { text: string } | null } };
+    })) as BlobQueryResponse;
     return data.repository?.object?.text ?? null;
   } catch {
     return null;
@@ -133,7 +109,7 @@ async function fetchBlob(owner: string, name: string, path: string): Promise<str
 export async function analyzeRepoFromUrl(repoUrl: string): Promise<RepoLinkAudit> {
   const { owner, repo } = parseRepoUrl(repoUrl);
 
-  const data = (await github(REPO_QUERY, { owner, name: repo })) as RepoQueryResult;
+  const data = (await github(REPO_QUERY, { owner, name: repo })) as RepoQueryResponse;
 
   if (!data.repository) {
     throw new Error(`Repository '${owner}/${repo}' not found on GitHub.`);

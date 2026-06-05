@@ -2,7 +2,42 @@
 
 import { getProfileData } from "@/lib/github-service";
 import { generateAIReview } from "@/lib/ai-service";
-import { Persona, ProfileAnalysis } from "@/types";
+import { UNAVAILABLE_COMMIT_ANALYTICS } from "@/lib/commit-analytics-fallback";
+import { CommitAnalytics, Persona, ProfileAnalysis } from "@/types";
+
+type BackendCommitAnalytics = {
+  available: boolean;
+  hygiene: {
+    score: number;
+    analyzed_count: number;
+    good_count: number;
+    weak_count: number;
+    insights: string[];
+  };
+  contribution_trend: {
+    total_last_year: number;
+    monthly: Array<{ month: string; count: number }>;
+    direction: "up" | "down" | "stable";
+    recent_average: number;
+    prior_average: number;
+  };
+  inactivity: {
+    longest_gap_days: number;
+    gaps_over_30_days: number;
+    days_since_last_commit: number | null;
+    notable_gaps: Array<{ start: string; end: string; days: number }>;
+    insight: string;
+  };
+  chronotype: {
+    peak_day: string;
+    peak_hour: number;
+    peak_hour_label: string;
+    day_distribution: Array<{ day: string; count: number }>;
+    hour_distribution: Array<{ hour: number; count: number }>;
+    label: string;
+    insight: string;
+  };
+};
 
 type BackendResponse = {
   developer: {
@@ -25,15 +60,58 @@ type BackendResponse = {
       score: number;
     }>;
     red_flags: string[];
+    commit_analytics?: BackendCommitAnalytics;
   };
   recruiter_readiness: {
     scores: {
       overall: number;
       consistency: number;
       project_depth: number;
+      commit_hygiene?: number;
+      velocity?: number;
+      contribution?: number;
     };
+    recommendations?: string[];
   };
 };
+
+function mapCommitAnalytics(data?: BackendCommitAnalytics): CommitAnalytics {
+  if (!data) return UNAVAILABLE_COMMIT_ANALYTICS;
+
+  return {
+    available: data.available,
+    hygiene: {
+      score: data.hygiene.score,
+      analyzedCount: data.hygiene.analyzed_count,
+      goodCount: data.hygiene.good_count,
+      weakCount: data.hygiene.weak_count,
+      insights: data.hygiene.insights,
+    },
+    contributionTrend: {
+      totalLastYear: data.contribution_trend.total_last_year,
+      monthly: data.contribution_trend.monthly,
+      direction: data.contribution_trend.direction,
+      recentAverage: data.contribution_trend.recent_average,
+      priorAverage: data.contribution_trend.prior_average,
+    },
+    inactivity: {
+      longestGapDays: data.inactivity.longest_gap_days,
+      gapsOver30Days: data.inactivity.gaps_over_30_days,
+      daysSinceLastCommit: data.inactivity.days_since_last_commit,
+      notableGaps: data.inactivity.notable_gaps,
+      insight: data.inactivity.insight,
+    },
+    chronotype: {
+      peakDay: data.chronotype.peak_day,
+      peakHour: data.chronotype.peak_hour,
+      peakHourLabel: data.chronotype.peak_hour_label,
+      dayDistribution: data.chronotype.day_distribution,
+      hourDistribution: data.chronotype.hour_distribution,
+      label: data.chronotype.label,
+      insight: data.chronotype.insight,
+    },
+  };
+}
 
 async function getBackendProfile(username: string): Promise<Partial<ProfileAnalysis>> {
   const backendBaseUrl = process.env.BACKEND_API_URL;
@@ -66,6 +144,7 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
 
   const totalStars = data.analytics.repository_summaries.reduce((acc, repo) => acc + repo.stars, 0);
   const totalForks = data.analytics.repository_summaries.reduce((acc, repo) => acc + repo.forks, 0);
+  const readinessScores = data.recruiter_readiness.scores;
 
   return {
     username: data.developer.login,
@@ -74,11 +153,14 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
     bio: data.developer.bio || "",
     followers: data.developer.followers,
     scores: {
-      total: data.recruiter_readiness.scores.overall,
-      branding: data.recruiter_readiness.scores.project_depth,
+      total: readinessScores.overall,
+      branding: readinessScores.project_depth,
       repoQuality: Math.round(repos.reduce((acc, repo) => acc + repo.score, 0) / (repos.length || 1)),
-      consistency: data.recruiter_readiness.scores.consistency,
-      profile: data.recruiter_readiness.scores.overall,
+      consistency: readinessScores.consistency,
+      profile: readinessScores.overall,
+      commitHygiene: readinessScores.commit_hygiene,
+      velocity: readinessScores.velocity,
+      contribution: readinessScores.contribution,
     },
     stats: {
       totalRepos: data.analytics.repository_count,
@@ -87,6 +169,8 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
     },
     repos,
     redFlags: data.analytics.red_flags,
+    commitAnalytics: mapCommitAnalytics(data.analytics.commit_analytics),
+    recommendations: data.recruiter_readiness.recommendations,
   };
 }
 
@@ -97,19 +181,26 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
   console.log(`🚀 Starting analysis for: ${username}`);
 
   try {
-    // 1. Check Env Vars
     if (!process.env.GITHUB_TOKEN) {
       throw new Error("GITHUB_TOKEN is missing in .env.local");
     }
 
-   let profileData: Partial<ProfileAnalysis>;
+    let profileData: Partial<ProfileAnalysis>;
+    let usedBackend = false;
     try {
       console.log("...Fetching data from Python backend pipeline");
       profileData = await getBackendProfile(username);
+      usedBackend = true;
     } catch {
       console.warn("⚠️ Backend API unavailable. Falling back to local GraphQL service.");
       profileData = await getProfileData(username);
+      profileData.commitAnalytics = UNAVAILABLE_COMMIT_ANALYTICS;
     }
+
+    if (!usedBackend && !profileData.commitAnalytics) {
+      profileData.commitAnalytics = UNAVAILABLE_COMMIT_ANALYTICS;
+    }
+
     console.log("...Fetching AI Review");
     let aiData: { commentary: string; roadmap: string[] };
     try {
@@ -119,13 +210,16 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
       console.warn("⚠️ Groq Failed or Key missing. Using fallback.");
       aiData = {
         commentary: "AI Analysis unavailable. Please add a valid GROQ_API_KEY to .env.local to generate a personalized review.",
-        roadmap: ["Add GROQ API Key", "Check GitHub Token", "Review Code Manually"],
+        roadmap: profileData.recommendations?.slice(0, 3) ?? [
+          "Add GROQ API Key",
+          "Check GitHub Token",
+          "Review Code Manually",
+        ],
       };
     }
 
     console.log("✅ Analysis Complete");
 
-    // 4. Merge
     return {
       ...profileData,
       aiReview: {

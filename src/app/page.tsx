@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { analyzeProfile } from './actions';
 import { ProfileAnalysis } from '@/types';
 import { AuditChart } from '@/components/audit-chart';
+import { CommitAnalyticsSection } from '@/components/commit-analytics';
 import { Card, Badge, ProgressBar } from '@/components/ui-parts';
 import { Loader2, Github, AlertTriangle, CheckCircle, Quote, Star, Users, ArrowLeft, RefreshCcw } from 'lucide-react';
 
@@ -211,6 +212,8 @@ const handleRefresh = async () => {
                 </div>
               </div>
             </div>
+
+            <CommitAnalyticsSection analytics={data.commitAnalytics} />
 
             {/* --- METRICS & DATA GRID --- */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pt-4">

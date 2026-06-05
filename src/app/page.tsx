@@ -122,27 +122,6 @@ export default function Home() {
             <span>RepoRefine</span>
           </div>
 
-          {/* BACK BUTTON: Only shows when data is present */}
-{data && (
-  
-  <div className="flex items-center gap-2">
-    <button
-      onClick={handleRefresh}
-      disabled={loading}
-      className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition bg-slate-800/50 hover:bg-slate-800 px-4 py-2 rounded-full border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-      {loading ? "Refreshing..." : "Refresh"}
-    </button>
-    <button 
-      onClick={handleReset}
-      className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition bg-slate-800/50 hover:bg-slate-800 px-4 py-2 rounded-full border border-slate-700"
-    >
-      <ArrowLeft className="w-4 h-4" />
-      Go Back
-    </button>
-  </div>
-)}        </div>
           {hasResults && (
             <div className="flex items-center gap-2">
               <button
@@ -351,39 +330,6 @@ export default function Home() {
 
               <div className="md:col-span-8 space-y-8">
                 <Card>
-                   <div className="flex items-center justify-between mb-6">
-                     <h3 className="font-bold text-white text-lg">Repository Audit</h3>
-                     <span className="text-xs text-slate-500">Last 6 active repos</span>
-                   </div>
-                   <div className="grid gap-4">
-                      {data.repos.map((repo, i) => (
-                        <div key={i} className="group p-5 rounded-xl bg-slate-950/50 border border-slate-800 hover:border-blue-500/50 transition duration-300">
-                           <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <h4 className="font-bold text-blue-400 text-lg group-hover:text-blue-300 transition">{repo.name}</h4>
-                                      <div className="flex gap-3 text-xs text-slate-500 mt-1">
-                                        <span>{repo.language}</span>
-                                        <span>|</span>
-                                        <span>{repo.stars} Stars</span>
-                                        <span>|</span>
-                                        <span>{repo.forks} Forks</span>
-                                        <span>|</span>
-                                        <span>Updated {repo.lastUpdated}</span>
-                                      </div>                              
-                                  </div>
-                              <div className="flex flex-col items-end">
-                                <span className={`text-2xl font-black ${getScoreColor(repo.score)}`}>
-                                  {repo.score}
-                                </span>
-                              </div>
-                           </div>
-                           
-                           <div className="flex flex-wrap gap-2 mt-3">
-                              {repo.issues.length === 0 && <Badge variant="success">Perfect Score</Badge>}
-                              {repo.issues.map((issue, j) => (
-                                <Badge key={j} variant="destructive">{issue}</Badge>
-                              ))}
-                           </div>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-bold text-white text-lg">Repository Audit</h3>
                     <span className="text-xs text-slate-500">Last 6 active repos</span>

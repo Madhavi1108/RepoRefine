@@ -74,11 +74,36 @@ cd RepoRefine
 npm install
 ```
 ### 3️⃣ Add Environment Variables
-Create a .env.local file:
-``` bash
-GITHUB_TOKEN=your_github_pat_token
-GROQ_API_KEY=your_groq_api_key_optional
+
+Copy the example file:
+
+```bash
+cp .env.example .env.local
 ```
+
+Then open `.env.local` and fill in your values.
+
+#### Getting your GitHub Personal Access Token (Required)
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. Give it a name (e.g. `RepoRefine`)
+4. Select these scopes:
+   - `read:user` — to fetch profile data
+   - `repo` — for repository analysis
+5. Click **Generate token** and copy it
+6. Paste it as the value of `GITHUB_TOKEN` in `.env.local`
+
+> ⚠️ Without `GITHUB_TOKEN`, the app will silently fail with "Could not analyze profile."
+
+#### Getting your Groq API Key (Optional)
+
+1. Go to [console.groq.com](https://console.groq.com)
+2. Sign up or log in
+3. Create an API key and paste it as `GROQ_API_KEY` in `.env.local`
+
+> Without `GROQ_API_KEY`, AI review commentary will be replaced with a fallback message.
+
 ### 4️⃣ Run locally
 ```bash
 npm run dev

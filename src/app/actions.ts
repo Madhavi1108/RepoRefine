@@ -2,7 +2,8 @@
 
 import { getProfileData } from "@/lib/github-service";
 import { generateAIReview } from "@/lib/ai-service";
-import { Persona, ProfileAnalysis } from "@/types";
+import { analyzeRepoFromUrl } from "@/lib/repo-service";
+import { Persona, ProfileAnalysis, RepoLinkAudit } from "@/types";
 
 type BackendResponse = {
   developer: {
@@ -58,6 +59,7 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
     description: repo.description,
     language: repo.language,
     stars: repo.stars,
+    forks: repo.forks,
     lastUpdated: repo.last_updated ? new Date(repo.last_updated).toLocaleDateString() : "Unknown",
     issues: repo.issues,
     score: repo.score,
@@ -90,8 +92,19 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
 }
 
 export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysis> {
-  const username = formData.get("username") as string;
+  const rawUsername = formData.get("username") as string;
+  const username = rawUsername.trim();
   const persona = (formData.get("persona") as Persona) || "recruiter";
+
+  if (!username) {
+    throw new Error("VALIDATION: Username cannot be empty.");
+  }
+  if (username.length > 39) {
+    throw new Error("VALIDATION: Invalid GitHub username: too long (max 39 characters).");
+  }
+  if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)) {
+    throw new Error("VALIDATION: Invalid GitHub username: only letters, numbers, and hyphens allowed. Cannot start or end with a hyphen.");
+  }
 
   console.log(`🚀 Starting analysis for: ${username}`);
 
@@ -136,6 +149,30 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to analyze profile";
     console.error("❌ SERVER ACTION ERROR:", message);
+    throw new Error(message);
+  }
+}
+
+export async function analyzeRepoLink(formData: FormData): Promise<RepoLinkAudit> {
+  const repoUrl = formData.get("repoUrl") as string;
+
+  if (!process.env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN is missing in .env.local");
+  }
+
+  if (!repoUrl?.trim()) {
+    throw new Error("Repository URL is required.");
+  }
+
+  console.log(`🔍 Starting repo link audit for: ${repoUrl}`);
+
+  try {
+    const result = await analyzeRepoFromUrl(repoUrl);
+    console.log("✅ Repo audit complete");
+    return result;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to analyze repository";
+    console.error("❌ REPO AUDIT ERROR:", message);
     throw new Error(message);
   }
 }

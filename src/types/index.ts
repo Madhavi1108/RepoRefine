@@ -33,7 +33,7 @@ export interface AnalyzedRepo {
   stars: number;
   forks: number;
   lastUpdated: string;
-  issues: string[]; // e.g. "No README", "No License"
+  issues: string[]; // e.g. "No Documentation", "No License"
   score: number; // 0-100
 }
 

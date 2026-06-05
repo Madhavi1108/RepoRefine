@@ -58,6 +58,7 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
     description: repo.description,
     language: repo.language,
     stars: repo.stars,
+    forks: repo.forks,
     lastUpdated: repo.last_updated ? new Date(repo.last_updated).toLocaleDateString() : "Unknown",
     issues: repo.issues,
     score: repo.score,

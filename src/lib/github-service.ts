@@ -1,5 +1,11 @@
 import { graphql } from "@octokit/graphql";
 import { AnalyzedRepo, ProfileAnalysis } from "@/types";
+import {
+  DocumentationMatch,
+  evaluateDocumentation,
+  findDocumentationMatch,
+  TreeEntry,
+} from "@/lib/documentation-detection";
 
 const github = graphql.defaults({
   headers: {
@@ -19,13 +25,10 @@ const PROFILE_QUERY = `
       websiteUrl
       followers { totalCount }
       
-      # Get total count of ALL repos (including forks)
       stats: repositories(ownerAffiliations: OWNER) {
         totalCount
       }
 
-      # FETCH UP TO 100 NON-FORK REPOS
-      # We sort by STARGAZERS to ensure we analyze the most important work first
       repositories(first: 100, orderBy: {field: STARGAZERS, direction: DESC}, ownerAffiliations: OWNER, isFork: false) {
         nodes {
           name
@@ -33,16 +36,78 @@ const PROFILE_QUERY = `
           stargazerCount
           forkCount
           pushedAt
+          isEmpty
           primaryLanguage { name }
           licenseInfo { name }
-          object(expression: "HEAD:README.md") {
-            ... on Blob { text }
+          rootTree: object(expression: "HEAD:") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          docsTree: object(expression: "HEAD:docs") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          docTree: object(expression: "HEAD:doc") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          documentationTree: object(expression: "HEAD:documentation") {
+            ... on Tree {
+              entries { name type }
+            }
           }
         }
       }
     }
   }
 `;
+
+function buildDocumentationContentQuery(
+  username: string,
+  matches: Array<{ repoName: string; match: DocumentationMatch }>
+): string {
+  const repoFields = matches
+    .map(
+      ({ repoName, match }, index) => `
+    repo_${index}: repository(name: "${repoName}") {
+      name
+      documentationContent: object(expression: "${match.expression}") {
+        ... on Blob { text }
+      }
+    }`
+    )
+    .join("\n");
+
+  return `
+    query($username: String!) {
+      user(login: $username) {
+        ${repoFields}
+      }
+    }
+  `;
+}
+
+async function fetchDocumentationContents(
+  username: string,
+  matches: Array<{ repoName: string; match: DocumentationMatch }>
+): Promise<Map<string, string | null>> {
+  const contentByRepo = new Map<string, string | null>();
+  if (matches.length === 0) return contentByRepo;
+
+  const query = buildDocumentationContentQuery(username, matches);
+  const data: Record<string, any> = await github(query, { username });
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const repoName = matches[index].repoName;
+    const repoData = data.user?.[`repo_${index}`];
+    contentByRepo.set(repoName, repoData?.documentationContent?.text ?? null);
+  }
+
+  return contentByRepo;
+}
 
 export async function getProfileData(username: string): Promise<Partial<ProfileAnalysis>> {
   try {
@@ -54,23 +119,43 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
 
     const user = data.user;
     const breakdown: { label: string; value: number; reason: string }[] = [];
+    const repoNodes: any[] = user.repositories.nodes;
 
-    // --- 1. Audit Repositories (Up to 100) ---
-    const analyzedRepos: AnalyzedRepo[] = user.repositories.nodes.map((repo: any) => {
+    const documentationMatches = repoNodes.map((repo) => ({
+      repoName: repo.name as string,
+      match: findDocumentationMatch(
+        repo.rootTree?.entries as TreeEntry[] | undefined,
+        repo.docsTree?.entries as TreeEntry[] | undefined,
+        repo.docTree?.entries as TreeEntry[] | undefined,
+        repo.documentationTree?.entries as TreeEntry[] | undefined
+      ),
+      isEmpty: Boolean(repo.isEmpty),
+    }));
+
+    const reposNeedingContent = documentationMatches.filter(
+      ({ match, isEmpty }) => match && !isEmpty
+    ) as Array<{ repoName: string; match: DocumentationMatch; isEmpty: boolean }>;
+
+    const documentationContents = await fetchDocumentationContents(
+      username,
+      reposNeedingContent.map(({ repoName, match }) => ({ repoName, match }))
+    );
+
+    const analyzedRepos: AnalyzedRepo[] = repoNodes.map((repo: any) => {
       const issues: string[] = [];
       let score = 100;
 
       if (!repo.description) { issues.push("Missing Description"); score -= 10; }
       if (!repo.licenseInfo) { issues.push("No License"); score -= 20; }
-      
-      // Strict README check
-      if (!repo.object?.text) { 
-        issues.push("No README"); 
-        score -= 40; 
-      } else if (repo.object.text.length < 300) { 
-        issues.push("Weak README"); 
-        score -= 20; 
-      }
+
+      const docMatchInfo = documentationMatches.find((entry) => entry.repoName === repo.name);
+      const docEvaluation = evaluateDocumentation(
+        docMatchInfo?.match ?? null,
+        documentationContents.get(repo.name),
+        docMatchInfo?.isEmpty ?? false
+      );
+      issues.push(...docEvaluation.issues);
+      score -= docEvaluation.scoreDeduction;
       
       const lastPush = new Date(repo.pushedAt);
       const daysSincePush = (Date.now() - lastPush.getTime()) / (1000 * 3600 * 24);
@@ -88,20 +173,14 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       };
     });
 
-    // --- SMART SCORING ---
-    // Instead of a flat average (which punishes you for old experimental repos),
-    // we take the weighted average of your Top 10 repos (by stars).
-    // The rest of the repos only count for 20% of the grade.
-    
     const topRepos = analyzedRepos.slice(0, 10);
     const otherRepos = analyzedRepos.slice(10);
 
     const topAvg = topRepos.reduce((acc, r) => acc + r.score, 0) / (topRepos.length || 1);
     const otherAvg = otherRepos.length > 0 
       ? otherRepos.reduce((acc, r) => acc + r.score, 0) / otherRepos.length 
-      : topAvg; // Fallback if < 10 repos
+      : topAvg;
 
-    // Weighted Quality Score: Top repos matter 80%, others 20%
     const weightedRepoScore = Math.round((topAvg * 0.8) + (otherAvg * 0.2));
 
     breakdown.push({ 
@@ -110,7 +189,6 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       reason: `Weighted score of ${analyzedRepos.length} repositories (Top 10 impactful projects prioritized).` 
     });
 
-    // --- 2. Branding ---
     let brandingScore = 0;
     if (user.bio) brandingScore += 20; 
     if (user.company) brandingScore += 10;
@@ -125,8 +203,6 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       reason: user.bio ? "Bio and links present." : "Missing key profile details." 
     });
 
-    // --- 3. Consistency ---
-    // Check if the user has pushed code in the last 30 days to ANY repo
     const recentActivity = analyzedRepos.some(r => {
        const date = new Date(r.lastUpdated);
        const days = (Date.now() - date.getTime()) / (1000 * 3600 * 24);
@@ -164,7 +240,6 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
         totalRepos: user.stats.totalCount, 
         totalStars: analyzedRepos.reduce((acc, r) => acc + r.stars, 0),
         forks: analyzedRepos.reduce((acc, r) => acc + r.forks, 0),      },
-      // Return all analyzed repos
       repos: analyzedRepos,
       redFlags: analyzedRepos.flatMap(r => r.issues).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
     };

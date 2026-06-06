@@ -91,20 +91,20 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
   };
 }
 
-export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysis> {
+export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysis & { error?: string }> {
   const rawUsername = formData.get("username") as string;
   const username = rawUsername.trim();
   const persona = (formData.get("persona") as Persona) || "recruiter";
 
-  if (!username) {
-    throw new Error("VALIDATION: Username cannot be empty.");
-  }
-  if (username.length > 39) {
-    throw new Error("VALIDATION: Invalid GitHub username: too long (max 39 characters).");
-  }
-  if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)) {
-    throw new Error("VALIDATION: Invalid GitHub username: only letters, numbers, and hyphens allowed. Cannot start or end with a hyphen.");
-  }
+if (!username) {
+  return { error: "Username cannot be empty." } as any;
+}
+if (username.length > 39) {
+  return { error: "Invalid GitHub username: too long (max 39 characters)." } as any;
+}
+if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)) {
+  return { error: "Invalid GitHub username: only letters, numbers, and hyphens allowed." } as any;
+}
 
   console.log(`🚀 Starting analysis for: ${username}`);
 
@@ -146,13 +146,20 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
       },
     } as ProfileAnalysis;
 
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to analyze profile";
-    console.error("❌ SERVER ACTION ERROR:", message);
-    throw new Error(message);
+} catch (error: unknown) {
+  const message = error instanceof Error ? error.message : "Failed to analyze profile";
+  if (message.includes("GITHUB_TOKEN")) {
+    return { error: "GitHub token is missing or invalid. Check your .env.local file." } as any;
+  }
+  if (message.includes("not found") || message.includes("Could not resolve")) {
+    return { error: `GitHub user '${username}' not found.` } as any;
+  }
+  if (message.includes("rate limit") || message.includes("429")) {
+    return { error: "GitHub API rate limit exceeded. Please wait a few minutes and try again." } as any;
+  }
+  return { error: message } as any;
   }
 }
-
 export async function analyzeRepoLink(formData: FormData): Promise<RepoLinkAudit> {
   const repoUrl = formData.get("repoUrl") as string;
 

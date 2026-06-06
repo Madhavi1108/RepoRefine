@@ -40,6 +40,37 @@ const PROFILE_QUERY = `
   }
 `;
 
+// Parse README headings and detect present/missing sections
+function detectReadmeSections(text: string): { detected: string[]; missing: string[] } {
+  // Recruiter-focused sections with common heading variations
+  const sectionVariants: { key: string; variants: string[] }[] = [
+    { key: "overview", variants: ["overview", "about", "introduction", "what is"] },
+    { key: "features", variants: ["features", "highlights", "what it does"] },
+    { key: "tech stack", variants: ["tech stack", "technologies", "built with", "stack"] },
+    { key: "installation", variants: ["installation", "getting started", "setup", "how to run"] },
+    { key: "usage", variants: ["usage", "how to use", "how it works", "running"] },
+    { key: "demo", variants: ["demo", "screenshots", "preview", "live demo"] },
+    { key: "limitations", variants: ["limitations", "known issues", "caveats"] },
+    { key: "future", variants: ["future", "future enhancements", "roadmap", "future scope", "upcoming"] },
+  ];
+
+  // Extract only headings (lines starting with #, ##, ###)
+  const headings = text
+    .split("\n")
+    .filter(line => /^#{1,3}\s+/.test(line))
+    .map(line => line.replace(/^#+\s+/, "").toLowerCase().trim());
+
+  const detected = sectionVariants
+    .filter(section => headings.some(h => section.variants.some(v => h.includes(v))))
+    .map(s => s.key);
+
+  const missing = sectionVariants
+    .filter(s => !detected.includes(s.key))
+    .map(s => s.key);
+
+  return { detected, missing };
+}
+
 export async function getProfileData(username: string): Promise<Partial<ProfileAnalysis>> {
   try {
     const data = (await github(PROFILE_QUERY, { username })) as ProfileQueryResponse;
@@ -57,15 +88,22 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
 
       if (!repo.description) { issues.push("Missing Description"); score -= 10; }
       if (!repo.licenseInfo) { issues.push("No License"); score -= 20; }
-
-      if (!repo.object?.text) {
-        issues.push("No README");
-        score -= 40;
-      } else if (repo.object.text.length < 300) {
-        issues.push("Weak README");
-        score -= 20;
-      }
-
+      
+      // Strict README check
+if (!repo.object?.text) {
+  issues.push("No README");
+  score -= 40;
+} else {
+  const { detected, missing } = detectReadmeSections(repo.object.text);
+  if (detected.length < 2) {
+    issues.push("Weak README (missing key sections)");
+    score -= 20;
+  }
+  if (missing.length > 5) {
+    issues.push(`README missing: ${missing.slice(0, 3).join(", ")}`);
+    score -= 10;
+  }
+}     
       const lastPush = new Date(repo.pushedAt);
       const daysSincePush = (Date.now() - lastPush.getTime()) / (1000 * 3600 * 24);
       if (daysSincePush > 365) { issues.push("Inactive > 1yr"); score -= 10; }

@@ -6,7 +6,7 @@ import { ProfileAnalysis, RepoLinkAudit, AuditMode } from '@/types';
 import { AuditChart } from '@/components/audit-chart';
 import { RepoAuditResults } from '@/components/repo-audit-results';
 import { Card, Badge } from '@/components/ui-parts';
-import { Loader2, Github, AlertTriangle, CheckCircle, Quote, Star, Users, ArrowLeft, RefreshCcw, Link2 } from 'lucide-react';
+import { Loader2, Github, AlertTriangle, CheckCircle, Quote, Star,GitFork, Users, ArrowLeft, RefreshCcw, Link2 } from 'lucide-react';
 
 export default function Home() {
   const [mode, setMode] = useState<AuditMode>('profile');
@@ -342,9 +342,11 @@ export default function Home() {
                             <h4 className="font-bold text-blue-400 text-lg group-hover:text-blue-300 transition">{repo.name}</h4>
                             <div className="flex gap-3 text-xs text-slate-500 mt-1">
                               <span>{repo.language}</span>
-                              <span>•</span>
-                              <span>{repo.stars} Stars</span>
-                              <span>•</span>
+                              <span>|</span>
+                              <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {repo.stars}</span>
+                              <span>|</span>
+                              <span className="flex items-center gap-1"><GitFork className="w-3 h-3" /> {repo.forks}</span>
+                              <span>|</span>
                               <span>Updated {repo.lastUpdated}</span>
                             </div>
                           </div>

@@ -11,6 +11,7 @@ import { Loader2, Github, AlertTriangle, CheckCircle, Quote, Star,GitFork, Users
 export default function Home() {
   const [mode, setMode] = useState<AuditMode>('profile');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<ProfileAnalysis | null>(null);
   const [repoData, setRepoData] = useState<RepoLinkAudit | null>(null);
   const [error, setError] = useState("");
@@ -19,23 +20,28 @@ export default function Home() {
 
   const hasResults = Boolean(data || repoData);
 
-  async function handleProfileSubmit(formData: FormData) {
-    const username = formData.get("username") as string;
-    const persona = formData.get("persona") as string;
-    setLastInput({ username, persona });
-    setLoading(true);
-    setError("");
-    setData(null);
-    setRepoData(null);
-    try {
-      const result = await analyzeProfile(formData);
+async function handleProfileSubmit(formData: FormData) {
+  const username = formData.get("username") as string;
+  const persona = formData.get("persona") as string;
+  setLastInput({ username, persona });
+  setLoading(true);
+  setError("");
+  setData(null);
+  setRepoData(null);
+  try {
+    const result = await analyzeProfile(formData);
+    if (result.error) {
+      setError(result.error);
+    } else {
       setData(result);
-    } catch {
-      setError("Could not analyze profile. Check username or try again later.");
-    } finally {
-      setLoading(false);
     }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Could not analyze profile.";
+    setError(msg);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function handleRepoSubmit(formData: FormData) {
     const repoUrl = formData.get("repoUrl") as string;
@@ -55,37 +61,42 @@ export default function Home() {
     }
   }
 
-  const handleRefresh = async () => {
-    if (mode === 'profile' && lastInput) {
-      setLoading(true);
-      setError("");
-      try {
-        const formData = new FormData();
-        formData.set("username", lastInput.username);
-        formData.set("persona", lastInput.persona);
-        const result = await analyzeProfile(formData);
+const handleRefresh = async () => {
+  if (mode === 'profile' && lastInput) {
+    setRefreshing(true);  // changed
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("username", lastInput.username);
+      formData.set("persona", lastInput.persona);
+      const result = await analyzeProfile(formData);
+      if (result.error) {
+        setError(result.error);
+      } else {
         setData(result);
-      } catch {
-        setError("Could not analyze profile. Check username or try again later.");
-      } finally {
-        setLoading(false);
       }
-    } else if (mode === 'repo' && lastRepoUrl) {
-      setLoading(true);
-      setError("");
-      try {
-        const formData = new FormData();
-        formData.set("repoUrl", lastRepoUrl);
-        const result = await analyzeRepoLink(formData);
-        setRepoData(result);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Could not analyze repository.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not analyze profile.";
+      setError(msg);
+    } finally {
+      setRefreshing(false);  // changed
     }
-  };
+  } else if (mode === 'repo' && lastRepoUrl) {
+    setRefreshing(true);  // changed
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("repoUrl", lastRepoUrl);
+      const result = await analyzeRepoLink(formData);
+      setRepoData(result);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not analyze repository.";
+      setError(message);
+    } finally {
+      setRefreshing(false);  // changed
+    }
+  }
+};
 
   const handleReset = () => {
     setData(null);
@@ -121,11 +132,11 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={refreshing}
                 className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition bg-slate-800/50 hover:bg-slate-800 px-4 py-2 rounded-full border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-                {loading ? "Refreshing..." : "Refresh"}
+                {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+                {refreshing ? "Refreshing..." : "Refresh"}
               </button>
               <button
                 onClick={handleReset}

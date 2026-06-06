@@ -42,6 +42,7 @@ export interface ProfileRepoNode {
   pushedAt: string;
   primaryLanguage: NamedEntity | null;
   licenseInfo: LicenseInfo | null;
+  openIssues: TotalCount | null;
   object: GitBlob | null;
 }
 

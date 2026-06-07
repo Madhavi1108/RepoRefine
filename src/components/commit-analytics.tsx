@@ -1,11 +1,11 @@
 'use client';
 
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -134,26 +134,43 @@ export function CommitAnalyticsSection({ analytics }: { analytics?: CommitAnalyt
           ) : (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={contributionTrend.monthly}>
-                  <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+                <AreaChart data={contributionTrend.monthly}>
+                  <defs>
+                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
                   <XAxis
                     dataKey="month"
                     tickFormatter={formatMonth}
                     tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    dy={10}
                   />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                  <YAxis 
+                    tick={{ fill: '#94a3b8', fontSize: 11 }} 
+                    axisLine={false}
+                    tickLine={false}
+                    dx={-10}
+                  />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155' }}
+                    contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '8px', backdropFilter: 'blur(4px)', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}
                     labelFormatter={(label) => formatMonth(String(label))}
+                    cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '3 3' }}
                   />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="count"
                     stroke="#34d399"
-                    strokeWidth={2}
-                    dot={{ fill: '#34d399', r: 3 }}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorCount)"
+                    activeDot={{ r: 6, fill: '#34d399', stroke: '#020617', strokeWidth: 2 }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -247,24 +264,42 @@ export function CommitAnalyticsSection({ analytics }: { analytics?: CommitAnalyt
                 <p className="text-xs text-slate-500 mb-2">Commits by day of week</p>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chronotype.dayDistribution}>
+                    <defs>
+                      <linearGradient id="barGradient1" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#c084fc" />
+                        <stop offset="100%" stopColor="#9333ea" />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155' }} />
-                    <Bar dataKey="count" fill="#a78bfa" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} dy={8} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} dx={-10} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} 
+                      contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '8px', backdropFilter: 'blur(4px)' }} 
+                    />
+                    <Bar dataKey="count" fill="url(#barGradient1)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="h-36">
+              <div className="h-36 mt-6">
                 <p className="text-xs text-slate-500 mb-2">Commits by hour of day</p>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chronotype.hourDistribution}>
+                    <defs>
+                      <linearGradient id="barGradient2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#60a5fa" />
+                        <stop offset="100%" stopColor="#2563eb" />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="hour" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155' }} />
-                    <Bar dataKey="count" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="hour" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} dy={8} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} dx={-10} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} 
+                      contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '8px', backdropFilter: 'blur(4px)' }} 
+                    />
+                    <Bar dataKey="count" fill="url(#barGradient2)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

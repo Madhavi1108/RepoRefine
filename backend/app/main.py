@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 
 from .analytics import aggregate_activity
+from .commit_analytics import build_commit_analytics
 from .documentation_detection import find_documentation_match
 from .github_graphql import (
     GitHubGraphQLError,
@@ -41,6 +42,7 @@ async def analyze_developer(username: str) -> dict:
         documentation_contents = await fetch_documentation_contents(username, repo_matches)
         aggregated = aggregate_activity(user_data, documentation_contents)
         scoring = score_recruiter_readiness(aggregated)
+        commit_analytics = build_commit_analytics(user_data, aggregated)
         return {
             "developer": aggregated["profile"],
             "analytics": {
@@ -51,6 +53,7 @@ async def analyze_developer(username: str) -> dict:
                 "top_languages": aggregated["top_languages"],
                 "repository_summaries": aggregated["repository_summaries"],
                 "red_flags": aggregated["red_flags"],
+                "commit_analytics": commit_analytics,
             },
             "recruiter_readiness": scoring,
         }

@@ -18,6 +18,12 @@ query($username: String!) {
     contributionsCollection {
       contributionCalendar {
         totalContributions
+        weeks {
+          contributionDays {
+            date
+            contributionCount
+          }
+        }
       }
       commitContributionsByRepository(maxRepositories: 25) {
         repository {

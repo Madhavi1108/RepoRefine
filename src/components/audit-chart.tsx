@@ -1,8 +1,15 @@
 'use client';
 
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
+import type { ProfileAnalysis } from '@/types';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface AuditChartProps {
+  scores: ProfileAnalysis['scores'];
+}
+
+const CustomTooltip = ({ active, payload, label }: Partial<TooltipContentProps<ValueType, NameType>>) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-slate-900 border border-slate-700 p-2 rounded shadow-xl">
@@ -14,13 +21,18 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function AuditChart({ scores }: { scores: any }) {
+export function AuditChart({ scores }: AuditChartProps) {
   // We rename the labels to be shorter so they don't get cut off
   const data = [
     { subject: 'Identity', A: scores.branding, fullMark: 100 },
     { subject: 'Code', A: scores.repoQuality, fullMark: 100 },
     { subject: 'Activity', A: scores.consistency, fullMark: 100 },
-    { subject: 'Impact', A: scores.profile, fullMark: 100 },
+    ...(typeof scores.commitHygiene === 'number'
+      ? [{ subject: 'Commits', A: scores.commitHygiene, fullMark: 100 }]
+      : []),
+    ...(typeof scores.contribution === 'number'
+      ? [{ subject: 'Contrib', A: scores.contribution, fullMark: 100 }]
+      : []),
     { subject: 'Health', A: scores.total, fullMark: 100 },
   ];
 

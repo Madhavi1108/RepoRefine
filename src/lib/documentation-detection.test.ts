@@ -63,6 +63,24 @@ describe("findDocumentationMatch", () => {
     expect(match?.location).toBe("documentation");
   });
 
+  it("detects examples/index.md", () => {
+    const match = findDocumentationMatch(
+      [], null, null, null,
+      [blob("index.md")]
+    );
+    expect(match?.path).toBe("examples/index.md");
+    expect(match?.location).toBe("examples");
+  });
+
+  it("detects .github/CONTRIBUTING.md as fallback documentation", () => {
+    const match = findDocumentationMatch(
+      [], null, null, null, null, null,
+      [blob("CONTRIBUTING.md")]
+    );
+    expect(match?.path).toBe(".github/CONTRIBUTING.md");
+    expect(match?.location).toBe("github");
+  });
+
   it("returns null when no documentation files exist", () => {
     const match = findDocumentationMatch(
       [blob("package.json"), tree("src")],

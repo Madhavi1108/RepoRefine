@@ -1,4 +1,4 @@
-export type DocLocation = "root" | "docs" | "doc" | "documentation";
+export type DocLocation = "root" | "docs" | "doc" | "documentation" | "examples" | "wiki" | "github";
 
 export interface TreeEntry {
   name: string;
@@ -14,17 +14,27 @@ export interface DocumentationMatch {
 
 const README_FILE_PATTERN = /^readme(\.(md|markdown|rst|txt|asciidoc))?$/i;
 
+// Check for standard readme and entry point files
 const DOC_ENTRY_PATTERNS: RegExp[] = [
   /^readme(\.(md|markdown|rst|txt|asciidoc))?$/i,
   /^index\.(md|markdown|rst|html)$/i,
   /^getting[-_]started\.md$/i,
 ];
 
+// Specific patterns for community health files like CONTRIBUTING
+const GITHUB_ENTRY_PATTERNS: RegExp[] = [
+  /^contributing(\.(md|markdown|rst|txt))?$/i,
+];
+
+// Prioritize root and explicit doc folders over examples/wikis
 const LOCATION_PRIORITY: Record<DocLocation, number> = {
   root: 400,
   docs: 300,
   documentation: 250,
   doc: 200,
+  wiki: 150,
+  examples: 100,
+  github: 50,
 };
 
 const EXTENSION_PRIORITY: Record<string, number> = {
@@ -48,6 +58,7 @@ function extensionScore(fileName: string): number {
   }
   if (lower.startsWith("index.")) return 22;
   if (lower.includes("getting-started") || lower.includes("getting_started")) return 20;
+  if (lower.includes("contributing")) return 19;
   return 10;
 }
 
@@ -84,22 +95,32 @@ export function findDocumentationMatch(
   rootEntries: TreeEntry[] | null | undefined,
   docsEntries?: TreeEntry[] | null,
   docEntries?: TreeEntry[] | null,
-  documentationEntries?: TreeEntry[] | null
+  documentationEntries?: TreeEntry[] | null,
+  examplesEntries?: TreeEntry[] | null,
+  wikiEntries?: TreeEntry[] | null,
+  githubEntries?: TreeEntry[] | null
 ): DocumentationMatch | null {
+  // Extract candidates from all the provided directory trees
   const candidates: DocumentationMatch[] = [
+    // Standard repository README check at the root
     ...candidatesFromEntries(rootEntries, "root", [README_FILE_PATTERN]),
+    
+    // Checks for typical documentation folder structures
     ...candidatesFromEntries(docsEntries, "docs", DOC_ENTRY_PATTERNS, "docs"),
     ...candidatesFromEntries(docEntries, "doc", DOC_ENTRY_PATTERNS, "doc"),
-    ...candidatesFromEntries(
-      documentationEntries,
-      "documentation",
-      DOC_ENTRY_PATTERNS,
-      "documentation"
-    ),
+    ...candidatesFromEntries(documentationEntries, "documentation", DOC_ENTRY_PATTERNS, "documentation"),
+    
+    // Added support for finding documentation in examples or wikis
+    ...candidatesFromEntries(examplesEntries, "examples", DOC_ENTRY_PATTERNS, "examples"),
+    ...candidatesFromEntries(wikiEntries, "wiki", DOC_ENTRY_PATTERNS, "wiki"),
+    
+    // Special check for CONTRIBUTING guidelines as a fallback documentation signal
+    ...candidatesFromEntries(githubEntries, "github", GITHUB_ENTRY_PATTERNS, ".github"),
   ];
 
   if (candidates.length === 0) return null;
 
+  // Sort by priority to ensure the best documentation match is used
   return candidates.sort((a, b) => {
     const locationDelta = LOCATION_PRIORITY[b.location] - LOCATION_PRIORITY[a.location];
     if (locationDelta !== 0) return locationDelta;

@@ -59,6 +59,28 @@ const PROFILE_QUERY = `
               entries { name type }
             }
           }
+<<<<<<< Updated upstream
+=======
+          examplesTree: object(expression: "HEAD:examples") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          wikiTree: object(expression: "HEAD:wiki") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          githubTree: object(expression: "HEAD:.github") {
+            ... on Tree {
+              entries { name type }
+            }
+          }
+          openIssues: issues(states: OPEN) { totalCount }
+          object(expression: "HEAD:README.md") {
+            ... on Blob { text }
+          }
+>>>>>>> Stashed changes
         }
       }
     }
@@ -127,7 +149,10 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
         repo.rootTree?.entries as TreeEntry[] | undefined,
         repo.docsTree?.entries as TreeEntry[] | undefined,
         repo.docTree?.entries as TreeEntry[] | undefined,
-        repo.documentationTree?.entries as TreeEntry[] | undefined
+        repo.documentationTree?.entries as TreeEntry[] | undefined,
+        repo.examplesTree?.entries as TreeEntry[] | undefined,
+        repo.wikiTree?.entries as TreeEntry[] | undefined,
+        repo.githubTree?.entries as TreeEntry[] | undefined
       ),
       isEmpty: Boolean(repo.isEmpty),
     }));

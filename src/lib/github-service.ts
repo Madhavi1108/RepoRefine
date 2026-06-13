@@ -108,7 +108,10 @@ async function fetchDocumentationContents(
   return contentByRepo;
 }
 
-// Parse README headings and detect present/missing sections
+/**
+ * Parse README headings and detect present/missing sections.
+ * This is used to ensure the documentation is comprehensive.
+ */
 function detectReadmeSections(text: string): { detected: string[]; missing: string[] } {
   // Recruiter-focused sections with common heading variations
   const sectionVariants: { key: string; variants: string[] }[] = [

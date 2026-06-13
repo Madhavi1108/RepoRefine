@@ -98,6 +98,7 @@ async function fetchDocumentationContents(
   if (matches.length === 0) return contentByRepo;
 
   const query = buildDocumentationContentQuery(username, matches);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: Record<string, any> = await github(query, { username });
 
   for (let index = 0; index < matches.length; index += 1) {
@@ -119,6 +120,7 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
 
     const user = data.user;
     const breakdown: { label: string; value: number; reason: string }[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const repoNodes: any[] = user.repositories.nodes;
 
     const documentationMatches = repoNodes.map((repo) => ({
@@ -141,6 +143,7 @@ export async function getProfileData(username: string): Promise<Partial<ProfileA
       reposNeedingContent.map(({ repoName, match }) => ({ repoName, match }))
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const analyzedRepos: AnalyzedRepo[] = repoNodes.map((repo: any) => {
       const issues: string[] = [];
       let score = 100;

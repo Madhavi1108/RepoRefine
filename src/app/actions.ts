@@ -178,6 +178,18 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
   const username = formData.get("username") as string;
   const persona = (formData.get("persona") as Persona) || "recruiter";
 
+  if (!username) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { error: "Username cannot be empty." } as any;
+  }
+  if (username.length > 39) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { error: "Invalid GitHub username: too long (max 39 characters)." } as any;
+  }
+  if (!/^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(username)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return { error: "Invalid GitHub username: only letters, numbers, and hyphens allowed." } as any;
+  }
   console.log(`🚀 Starting analysis for: ${username}`);
 
   try {

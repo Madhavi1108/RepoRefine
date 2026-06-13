@@ -1,8 +1,15 @@
 'use client';
 
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
+import type { ProfileAnalysis } from '@/types';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface AuditChartProps {
+  scores: ProfileAnalysis['scores'];
+}
+
+const CustomTooltip = ({ active, payload, label }: Partial<TooltipContentProps<ValueType, NameType>>) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 p-3 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.15)] text-center min-w-[100px]">
@@ -14,7 +21,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function AuditChart({ scores }: { scores: any }) {
+export function AuditChart({ scores }: AuditChartProps) {
+  // We rename the labels to be shorter so they don't get cut off
   const data = [
     { subject: 'Identity', A: scores.branding, fullMark: 100 },
     { subject: 'Code', A: scores.repoQuality, fullMark: 100 },

@@ -3,7 +3,8 @@
 import { getProfileData } from "@/lib/github-service";
 import { generateAIReview } from "@/lib/ai-service";
 import { UNAVAILABLE_COMMIT_ANALYTICS } from "@/lib/commit-analytics-fallback";
-import { CommitAnalytics, Persona, ProfileAnalysis } from "@/types";
+import { analyzeRepoFromUrl } from "@/lib/repo-service";
+import { CommitAnalytics, Persona, ProfileAnalysis, RepoLinkAudit } from "@/types";
 
 type BackendCommitAnalytics = {
   available: boolean;
@@ -137,6 +138,7 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
     language: repo.language,
     stars: repo.stars,
     forks: repo.forks,
+    openIssues: 0,
     lastUpdated: repo.last_updated ? new Date(repo.last_updated).toLocaleDateString() : "Unknown",
     issues: repo.issues,
     score: repo.score,
@@ -174,8 +176,9 @@ async function getBackendProfile(username: string): Promise<Partial<ProfileAnaly
   };
 }
 
-export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysis> {
-  const username = formData.get("username") as string;
+export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysis & { error?: string }> {
+  const rawUsername = formData.get("username") as string;
+  const username = rawUsername.trim();
   const persona = (formData.get("persona") as Persona) || "recruiter";
 
   if (!username) {
@@ -216,9 +219,9 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
     console.log("...Fetching AI Review");
     let aiData: { commentary: string; roadmap: string[] };
     try {
-       if (!process.env.GROQ_API_KEY) throw new Error("No Groq Key");
+      if (!process.env.GROQ_API_KEY) throw new Error("No Groq Key");
       aiData = await generateAIReview(profileData, persona);
-     } catch {
+    } catch {
       console.warn("⚠️ Groq Failed or Key missing. Using fallback.");
       aiData = {
         commentary: "AI Analysis unavailable. Please add a valid GROQ_API_KEY to .env.local to generate a personalized review.",
@@ -242,7 +245,38 @@ export async function analyzeProfile(formData: FormData): Promise<ProfileAnalysi
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to analyze profile";
-    console.error("❌ SERVER ACTION ERROR:", message);
+    if (message.includes("GITHUB_TOKEN")) {
+      return { error: "GitHub token is missing or invalid. Check your .env.local file." } as any;
+    }
+    if (message.includes("not found") || message.includes("Could not resolve")) {
+      return { error: `GitHub user '${username}' not found.` } as any;
+    }
+    if (message.includes("rate limit") || message.includes("429")) {
+      return { error: "GitHub API rate limit exceeded. Please wait a few minutes and try again." } as any;
+    }
+    return { error: message } as any;
+  }
+}
+export async function analyzeRepoLink(formData: FormData): Promise<RepoLinkAudit> {
+  const repoUrl = formData.get("repoUrl") as string;
+
+  if (!process.env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN is missing in .env.local");
+  }
+
+  if (!repoUrl?.trim()) {
+    throw new Error("Repository URL is required.");
+  }
+
+  console.log(`🔍 Starting repo link audit for: ${repoUrl}`);
+
+  try {
+    const result = await analyzeRepoFromUrl(repoUrl);
+    console.log("✅ Repo audit complete");
+    return result;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to analyze repository";
+    console.error("❌ REPO AUDIT ERROR:", message);
     throw new Error(message);
   }
 }
